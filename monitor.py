@@ -5,7 +5,7 @@ import smtplib
 from email.mime.text import MIMEText
 from datetime import datetime, timezone
 
-KEYWORDS = ["raffle", "giveaway", "sweepstakes", "enter to win", "win a", "contest"]
+KEYWORDS = ["raffle", "giveaway", "sweepstakes", "enter to win"]
 
 SMS_TO = "5713732274@vtext.com"
 GMAIL_FROM = os.environ["GMAIL_ADDRESS"]
