@@ -2,7 +2,6 @@ import requests
 import json
 import os
 import smtplib
-import xml.etree.ElementTree as ET
 from email.mime.text import MIMEText
 from datetime import datetime, timezone
 from urllib.parse import quote
@@ -59,27 +58,28 @@ def is_relevant(text):
     return any(kw in text for kw in KEYWORDS) and any(b.lower() in text for b in BRANDS)
 
 
-def search_bing_news(brand):
+def search_news_api():
     results = []
-    query = quote(f"{brand} golf raffle OR giveaway OR sweepstakes")
-    url = f"https://www.bing.com/news/search?q={query}&format=rss&mkt=en-US"
+    api_key = os.environ["NEWS_API_KEY"]
+    brands_query = " OR ".join(BRANDS)
+    query = quote(f"({brands_query}) AND (raffle OR giveaway OR sweepstakes)")
+    url = f"https://newsapi.org/v2/everything?q={query}&language=en&sortBy=publishedAt&pageSize=50&apiKey={api_key}"
     try:
         r = requests.get(url, headers=HEADERS, timeout=15)
         r.raise_for_status()
-        root = ET.fromstring(r.content)
-        for item in root.findall("./channel/item"):
-            title = item.findtext("title") or ""
-            link = item.findtext("link") or ""
-            guid = item.findtext("guid") or link
-            if is_relevant(title):
-                results.append({
-                    "id": f"news_{guid}",
-                    "brand": brand,
-                    "title": title,
-                    "url": link,
-                })
+        for article in r.json().get("articles", []):
+            title = article.get("title") or ""
+            link = article.get("url") or ""
+            if not link or not is_relevant(title):
+                continue
+            results.append({
+                "id": f"news_{link}",
+                "brand": next((b for b in BRANDS if b.lower() in title.lower()), "Golf"),
+                "title": title,
+                "url": link,
+            })
     except Exception as e:
-        print(f"[WARN] Bing News {brand}: {e}")
+        print(f"[WARN] NewsAPI: {e}")
     return results
 
 
@@ -115,8 +115,7 @@ def main():
     seen = load_seen()
 
     findings = []
-    for brand in BRANDS:
-        findings.extend(search_bing_news(brand))
+    findings.extend(search_news_api())
     findings.extend(scrape_brand_pages())
 
     seen_this_run = set()
