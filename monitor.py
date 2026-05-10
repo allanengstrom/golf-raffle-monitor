@@ -61,13 +61,13 @@ def is_relevant(text):
 def search_news_api():
     results = []
     api_key = os.environ["NEWS_API_KEY"]
-    brands_query = " OR ".join(BRANDS)
-    query = quote(f"({brands_query}) AND (raffle OR giveaway OR sweepstakes)")
+    query = quote("golf raffle OR giveaway OR sweepstakes")
     url = f"https://newsapi.org/v2/everything?q={query}&language=en&sortBy=publishedAt&pageSize=50&apiKey={api_key}"
     try:
         r = requests.get(url, headers=HEADERS, timeout=15)
-        r.raise_for_status()
-        for article in r.json().get("articles", []):
+        data = r.json()
+        print(f"[NewsAPI] status={data.get('status')} total={data.get('totalResults')} articles={len(data.get('articles', []))}")
+        for article in data.get("articles", []):
             title = article.get("title") or ""
             link = article.get("url") or ""
             if not link or not is_relevant(title):
