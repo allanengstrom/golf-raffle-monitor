@@ -53,9 +53,12 @@ def send_sms_batch(items):
     print(f"[SMS] Sent batch of {len(items)}")
 
 
-def is_relevant(text):
+def is_relevant(text, require_brand=True):
     text = text.lower()
-    return any(kw in text for kw in KEYWORDS) and any(b.lower() in text for b in BRANDS)
+    has_keyword = any(kw in text for kw in KEYWORDS)
+    if not require_brand:
+        return has_keyword
+    return has_keyword and any(b.lower() in text for b in BRANDS)
 
 
 def search_news_api():
@@ -70,7 +73,7 @@ def search_news_api():
         for article in data.get("articles", []):
             title = article.get("title") or ""
             link = article.get("url") or ""
-            if not link or not is_relevant(title):
+            if not link or not is_relevant(title, require_brand=False):
                 continue
             results.append({
                 "id": f"news_{link}",
