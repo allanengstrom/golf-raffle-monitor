@@ -69,8 +69,11 @@ def search_news_api():
     try:
         r = requests.get(url, headers=HEADERS, timeout=15)
         data = r.json()
-        print(f"[NewsAPI] status={data.get('status')} total={data.get('totalResults')} articles={len(data.get('articles', []))}")
-        for article in data.get("articles", []):
+        articles = data.get("articles", [])
+        print(f"[NewsAPI] status={data.get('status')} total={data.get('totalResults')} articles={len(articles)}")
+        for article in articles[:5]:
+            print(f"[DEBUG] title={article.get('title')!r}")
+        for article in articles:
             title = article.get("title") or ""
             link = article.get("url") or ""
             if not link or not is_relevant(title, require_brand=False):
