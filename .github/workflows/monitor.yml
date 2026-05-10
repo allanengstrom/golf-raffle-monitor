@@ -30,7 +30,6 @@ jobs:
         env:
           GMAIL_ADDRESS: ${{ secrets.GMAIL_ADDRESS }}
           GMAIL_APP_PASSWORD: ${{ secrets.GMAIL_APP_PASSWORD }}
-          NEWS_API_KEY: ${{ secrets.NEWS_API_KEY }}
         run: python monitor.py
 
       - name: Save seen raffles back to repo

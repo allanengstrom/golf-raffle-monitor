@@ -4,19 +4,39 @@ import os
 import smtplib
 from email.mime.text import MIMEText
 from datetime import datetime, timezone
-from urllib.parse import quote
 
-BRANDS = [
-    "Titleist", "TaylorMade", "Callaway", "PING",
-    "Cobra", "Cleveland", "Srixon", "Mizuno", "Bridgestone"
-]
-KEYWORDS = ["raffle", "giveaway", "sweepstakes", "enter to win", "win a"]
+KEYWORDS = ["raffle", "giveaway", "sweepstakes", "enter to win", "win a", "contest"]
 
 SMS_TO = "5713732274@vtext.com"
 GMAIL_FROM = os.environ["GMAIL_ADDRESS"]
 GMAIL_PASS = os.environ["GMAIL_APP_PASSWORD"]
 SEEN_FILE = "seen_raffles.json"
-HEADERS = {"User-Agent": "Mozilla/5.0 (compatible; GolfRaffleMonitor/1.0)"}
+HEADERS = {"User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"}
+
+# Each entry: (brand, url)
+PAGES = [
+    ("Titleist",    "https://www.titleist.com/promotions"),
+    ("Titleist",    "https://www.titleist.com/news"),
+    ("TaylorMade",  "https://www.taylormadegolf.com/promotions"),
+    ("TaylorMade",  "https://www.taylormadegolf.com/blogs/news"),
+    ("Callaway",    "https://www.callawaygolf.com/promotions"),
+    ("Callaway",    "https://www.callawaygolf.com/blogs/news"),
+    ("PING",        "https://ping.com/en-us/promotions"),
+    ("PING",        "https://ping.com/en-us/news"),
+    ("Cobra",       "https://www.cobragolf.com/pages/promotions"),
+    ("Cobra",       "https://www.cobragolf.com/blogs/news"),
+    ("Cleveland",   "https://www.clevelandgolf.com/pages/promotions"),
+    ("Cleveland",   "https://www.clevelandgolf.com/blogs/news"),
+    ("Srixon",      "https://www.srixon.com/pages/promotions"),
+    ("Srixon",      "https://www.srixon.com/blogs/news"),
+    ("Mizuno",      "https://www.mizunousa.com/pages/golf-promotions"),
+    ("Mizuno",      "https://www.mizunousa.com/blogs/news"),
+    ("Bridgestone", "https://www.bridgestonegolf.com/en-us/promotions"),
+    ("Bridgestone", "https://www.bridgestonegolf.com/en-us/news"),
+    ("PGA Tour Superstore", "https://www.pgatoursuperstore.com/promotions"),
+    ("Golf Galaxy", "https://www.golfgalaxy.com/c/golf-deals-promotions"),
+    ("Global Golf", "https://www.globalgolf.com/promotions"),
+]
 
 
 def load_seen():
@@ -53,85 +73,35 @@ def send_sms_batch(items):
     print(f"[SMS] Sent batch of {len(items)}")
 
 
-def is_relevant(text, require_brand=True):
-    text = text.lower()
-    has_keyword = any(kw in text for kw in KEYWORDS)
-    if not require_brand:
-        return has_keyword
-    return has_keyword and any(b.lower() in text for b in BRANDS)
-
-
-def search_news_api():
-    results = []
-    api_key = os.environ["NEWS_API_KEY"]
-    query = quote('"golf raffle" OR "golf giveaway" OR "golf sweepstakes" OR "golf equipment giveaway"')
-    url = f"https://newsapi.org/v2/everything?q={query}&language=en&sortBy=publishedAt&pageSize=50&apiKey={api_key}"
-    try:
-        r = requests.get(url, headers=HEADERS, timeout=15)
-        data = r.json()
-        articles = data.get("articles", [])
-        print(f"[NewsAPI] status={data.get('status')} total={data.get('totalResults')} articles={len(articles)}")
-        for article in articles[:5]:
-            print(f"[DEBUG] title={article.get('title')!r}")
-        for article in articles:
-            title = article.get("title") or ""
-            link = article.get("url") or ""
-            if not link or not is_relevant(title, require_brand=False):
-                continue
-            results.append({
-                "id": f"news_{link}",
-                "brand": next((b for b in BRANDS if b.lower() in title.lower()), "Golf"),
-                "title": title,
-                "url": link,
-            })
-    except Exception as e:
-        print(f"[WARN] NewsAPI: {e}")
-    return results
-
-
-def scrape_brand_pages():
-    pages = {
-        "Titleist": "https://www.titleist.com/promotions",
-        "TaylorMade": "https://www.taylormadegolf.com/promotions",
-        "Callaway": "https://www.callawaygolf.com/promotions",
-        "Cobra": "https://www.cobragolf.com/blogs/news",
-        "PING": "https://ping.com/en-us/promotions",
-        "Cleveland": "https://www.clevelandgolf.com/pages/promotions",
-        "Srixon": "https://www.srixon.com/pages/promotions",
-        "Bridgestone": "https://www.bridgestonegolf.com/en-us/promotions",
-    }
+def scrape_pages():
     results = []
     today = datetime.now(timezone.utc).strftime("%Y%m%d")
-    for brand, url in pages.items():
+    for brand, url in PAGES:
         try:
             r = requests.get(url, headers=HEADERS, timeout=15)
             if r.status_code < 400 and any(kw in r.text.lower() for kw in KEYWORDS):
                 results.append({
-                    "id": f"brand_{brand}_{today}",
+                    "id": f"{brand}_{today}",
                     "brand": brand,
-                    "title": f"Raffle/giveaway on {brand} promotions page",
                     "url": url,
                 })
+                print(f"[FOUND] {brand}: {url}")
+            else:
+                print(f"[CLEAR] {brand}: {url} (status={r.status_code})")
         except Exception as e:
-            print(f"[WARN] Brand page {brand}: {e}")
+            print(f"[WARN] {brand} {url}: {e}")
     return results
 
 
 def main():
     seen = load_seen()
-
-    findings = []
-    findings.extend(search_news_api())
-    findings.extend(scrape_brand_pages())
+    findings = scrape_pages()
 
     seen_this_run = set()
     new_items = []
     for item in findings:
         key = item["id"]
         if key in seen or key in seen_this_run:
-            continue
-        if not url_is_live(item["url"]):
-            print(f"[SKIP] Dead link: {item['url']}")
             continue
         seen_this_run.add(key)
         seen.add(key)
