@@ -64,7 +64,7 @@ def is_relevant(text, require_brand=True):
 def search_news_api():
     results = []
     api_key = os.environ["NEWS_API_KEY"]
-    query = quote("golf raffle OR giveaway OR sweepstakes")
+    query = quote('"golf raffle" OR "golf giveaway" OR "golf sweepstakes" OR "golf equipment giveaway"')
     url = f"https://newsapi.org/v2/everything?q={query}&language=en&sortBy=publishedAt&pageSize=50&apiKey={api_key}"
     try:
         r = requests.get(url, headers=HEADERS, timeout=15)
