@@ -59,10 +59,10 @@ def is_relevant(text):
     return any(kw in text for kw in KEYWORDS) and any(b.lower() in text for b in BRANDS)
 
 
-def search_google_news(brand):
+def search_bing_news(brand):
     results = []
-    query = quote(f"{brand} raffle OR giveaway OR sweepstakes golf")
-    url = f"https://news.google.com/rss/search?q={query}&hl=en-US&gl=US&ceid=US:en"
+    query = quote(f"{brand} golf raffle OR giveaway OR sweepstakes")
+    url = f"https://www.bing.com/news/search?q={query}&format=rss&mkt=en-US"
     try:
         r = requests.get(url, headers=HEADERS, timeout=15)
         r.raise_for_status()
@@ -79,7 +79,7 @@ def search_google_news(brand):
                     "url": link,
                 })
     except Exception as e:
-        print(f"[WARN] Google News {brand}: {e}")
+        print(f"[WARN] Bing News {brand}: {e}")
     return results
 
 
@@ -116,7 +116,7 @@ def main():
 
     findings = []
     for brand in BRANDS:
-        findings.extend(search_google_news(brand))
+        findings.extend(search_bing_news(brand))
     findings.extend(scrape_brand_pages())
 
     seen_this_run = set()
