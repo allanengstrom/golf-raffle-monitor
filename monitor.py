@@ -32,8 +32,19 @@ def save_seen(seen):
         json.dump(sorted(seen), f)
 
 
-def send_sms(brand, title, url):
-    body = f"RAFFLE: {brand}\n{title}\n{url}"
+def url_is_live(url):
+    try:
+        r = requests.head(url, headers=HEADERS, timeout=10, allow_redirects=True)
+        return r.status_code < 400
+    except Exception:
+        return False
+
+
+def send_sms_batch(items):
+    lines = []
+    for item in items:
+        lines.append(f"{item['brand']}: {item['url']}")
+    body = "GOLF RAFFLES:\n" + "\n".join(lines)
     msg = MIMEText(body)
     msg["From"] = GMAIL_FROM
     msg["To"] = SMS_TO
@@ -41,7 +52,7 @@ def send_sms(brand, title, url):
     with smtplib.SMTP_SSL("smtp.gmail.com", 465) as server:
         server.login(GMAIL_FROM, GMAIL_PASS)
         server.send_message(msg)
-    print(f"[SMS] {brand}: {title}")
+    print(f"[SMS] Sent batch of {len(items)}")
 
 
 def is_relevant(text):
@@ -101,7 +112,6 @@ def scrape_brand_pages():
 
 def main():
     seen = load_seen()
-    new_count = 0
 
     findings = []
     for brand in BRANDS:
@@ -109,22 +119,30 @@ def main():
             findings.extend(search_reddit(sub, brand))
     findings.extend(scrape_brand_pages())
 
-    # Deduplicate by id within this run
+    # Deduplicate, verify URLs, collect new items
     seen_this_run = set()
+    new_items = []
     for item in findings:
         key = item["id"]
         if key in seen or key in seen_this_run:
             continue
+        if not url_is_live(item["url"]):
+            print(f"[SKIP] Dead link: {item['url']}")
+            continue
         seen_this_run.add(key)
         seen.add(key)
-        new_count += 1
+        new_items.append(item)
+
+    # Send in batches of 3
+    for i in range(0, len(new_items), 3):
+        batch = new_items[i:i + 3]
         try:
-            send_sms(item["brand"], item["title"], item["url"])
+            send_sms_batch(batch)
         except Exception as e:
             print(f"[ERROR] SMS failed: {e}")
 
     save_seen(seen)
-    print(f"Done. {new_count} new raffle(s) found at {datetime.now(timezone.utc).isoformat()}")
+    print(f"Done. {len(new_items)} new raffle(s) found at {datetime.now(timezone.utc).isoformat()}")
 
 
 if __name__ == "__main__":
